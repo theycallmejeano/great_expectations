@@ -1,15 +1,26 @@
 # <snippet>
+import io
+
 import pandas as pd
-from ruamel import yaml
+from ruamel.yaml import YAML
 
 import great_expectations as ge
 from great_expectations.core.batch import RuntimeBatchRequest
 
 # </snippet>
 
+yaml = YAML(typ="safe")
 # <snippet>
 context = ge.get_context()
 # </snippet>
+
+
+def dict_to_yaml_string(dict_to_convert: dict) -> str:
+    yaml = YAML()
+    ostream = io.StringIO()
+    yaml.dump(dict_to_convert, ostream)
+    return ostream.getvalue()
+
 
 # YAML <snippet>
 datasource_yaml = r"""
@@ -25,7 +36,7 @@ data_connectors:
     batch_identifiers:
       - default_identifier_name
 """
-context.add_datasource(**yaml.safe_load(datasource_yaml))
+context.add_datasource(**yaml.load(datasource_yaml))
 # </snippet>
 
 test_yaml = context.test_yaml_config(datasource_yaml, return_mode="report_object")
@@ -49,16 +60,17 @@ datasource_config = {
 context.add_datasource(**datasource_config)
 # </snippet>
 
+
 test_python = context.test_yaml_config(
-    yaml.dump(datasource_config), return_mode="report_object"
+    dict_to_yaml_string(datasource_config), return_mode="report_object"
 )
 
 # CLI
+# <snippet>
 datasource_cli = """
-<snippet>
 great_expectations datasource new
-</snippet>
 """
+# </snippet>
 
 # NOTE: The following code is only for testing and can be ignored by users.
 assert test_yaml == test_python
@@ -80,7 +92,7 @@ validations:
       data_asset_name: taxi_data
     expectation_suite_name: my_expectation_suite
 """
-context.add_checkpoint(**yaml.safe_load(checkpoint_yaml))
+context.add_checkpoint(**yaml.load(checkpoint_yaml))
 # </snippet>
 
 test_yaml = context.test_yaml_config(checkpoint_yaml, return_mode="report_object")
@@ -105,7 +117,7 @@ context.add_checkpoint(**checkpoint_config)
 # </snippet>
 
 test_python = context.test_yaml_config(
-    yaml.dump(checkpoint_config), return_mode="report_object"
+    dict_to_yaml_string(checkpoint_config), return_mode="report_object"
 )
 
 # NOTE: The following code is only for testing and can be ignored by users.
@@ -127,7 +139,7 @@ results = context.run_checkpoint(
 # </snippet>
 
 # NOTE: The following code is only for testing and can be ignored by users.
-assert results["success"] == True
+assert results["success"] is True
 
 # YAML <snippet>
 checkpoint_yaml = """
@@ -136,7 +148,7 @@ config_version: 1
 class_name: SimpleCheckpoint
 expectation_suite_name: my_expectation_suite
 """
-context.add_checkpoint(**yaml.safe_load(checkpoint_yaml))
+context.add_checkpoint(**yaml.load(checkpoint_yaml))
 # </snippet>
 
 test_yaml = context.test_yaml_config(checkpoint_yaml, return_mode="report_object")
@@ -152,7 +164,7 @@ context.add_checkpoint(**checkpoint_config)
 # </snippet>
 
 test_python = context.test_yaml_config(
-    yaml.dump(checkpoint_config), return_mode="report_object"
+    dict_to_yaml_string(checkpoint_config), return_mode="report_object"
 )
 
 # NOTE: The following code is only for testing and can be ignored by users.
@@ -192,4 +204,4 @@ results = context.run_checkpoint(
 # </snippet>
 
 # NOTE: The following code is only for testing and can be ignored by users.
-assert results["success"] == True
+assert results["success"] is True
