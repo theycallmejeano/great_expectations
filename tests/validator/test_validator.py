@@ -1,3 +1,5 @@
+import os
+import shutil
 from typing import Any, Dict, List, Set, Tuple, Union
 from unittest import mock
 from uuid import UUID
@@ -21,6 +23,7 @@ from great_expectations.core.expectation_validation_result import (
     ExpectationValidationResult,
 )
 from great_expectations.data_context.types.base import ProgressBarsConfig
+from great_expectations.data_context.util import file_relative_path
 from great_expectations.datasource.data_connector.batch_filter import (
     BatchFilter,
     build_batch_filter,
@@ -30,13 +33,102 @@ from great_expectations.expectations.core.expect_column_value_z_scores_to_be_les
     ExpectColumnValueZScoresToBeLessThan,
 )
 from great_expectations.expectations.registry import get_expectation_impl
+from great_expectations.render.types import RenderedAtomicContent
 from great_expectations.validator.exception_info import ExceptionInfo
 from great_expectations.validator.metric_configuration import MetricConfiguration
-from great_expectations.validator.validation_graph import MetricEdge, ValidationGraph
+from great_expectations.validator.validation_graph import ValidationGraph
 from great_expectations.validator.validator import (
     MAX_METRIC_COMPUTATION_RETRIES,
     Validator,
 )
+
+
+@pytest.fixture()
+def yellow_trip_pandas_data_context(
+    tmp_path_factory,
+    monkeypatch,
+) -> DataContext:
+    """
+    Provides a data context with a data_connector for a pandas datasource which can connect to three months of
+    yellow trip taxi data in csv form. This data connector enables access to all three months through a BatchRequest
+    where the "year" in batch_filter_parameters is set to "2019", or to individual months if the "month" in
+    batch_filter_parameters is set to "01", "02", or "03"
+    """
+    # Re-enable GE_USAGE_STATS
+    monkeypatch.delenv("GE_USAGE_STATS")
+
+    project_path: str = str(tmp_path_factory.mktemp("taxi_data_context"))
+    context_path: str = os.path.join(project_path, "great_expectations")
+    os.makedirs(os.path.join(context_path, "expectations"), exist_ok=True)
+    data_path: str = os.path.join(context_path, "..", "data")
+    os.makedirs(os.path.join(data_path), exist_ok=True)
+    shutil.copy(
+        file_relative_path(
+            __file__,
+            os.path.join(
+                "..",
+                "integration",
+                "fixtures",
+                "yellow_tripdata_pandas_fixture",
+                "great_expectations",
+                "great_expectations.yml",
+            ),
+        ),
+        str(os.path.join(context_path, "great_expectations.yml")),
+    )
+    shutil.copy(
+        file_relative_path(
+            __file__,
+            os.path.join(
+                "..",
+                "test_sets",
+                "taxi_yellow_tripdata_samples",
+                "yellow_tripdata_sample_2019-01.csv",
+            ),
+        ),
+        str(
+            os.path.join(
+                context_path, "..", "data", "yellow_tripdata_sample_2019-01.csv"
+            )
+        ),
+    )
+    shutil.copy(
+        file_relative_path(
+            __file__,
+            os.path.join(
+                "..",
+                "test_sets",
+                "taxi_yellow_tripdata_samples",
+                "yellow_tripdata_sample_2019-02.csv",
+            ),
+        ),
+        str(
+            os.path.join(
+                context_path, "..", "data", "yellow_tripdata_sample_2019-02.csv"
+            )
+        ),
+    )
+    shutil.copy(
+        file_relative_path(
+            __file__,
+            os.path.join(
+                "..",
+                "test_sets",
+                "taxi_yellow_tripdata_samples",
+                "yellow_tripdata_sample_2019-03.csv",
+            ),
+        ),
+        str(
+            os.path.join(
+                context_path, "..", "data", "yellow_tripdata_sample_2019-03.csv"
+            )
+        ),
+    )
+
+    context: DataContext = DataContext(context_root_dir=context_path)
+    assert context.root_directory == context_path
+
+    return context
 
 
 def test_parse_validation_graph():
@@ -667,6 +759,7 @@ def multi_batch_taxi_validator_ge_cloud_mode(
     return validator_multi_batch
 
 
+@pytest.mark.cloud
 @mock.patch(
     "great_expectations.data_context.data_context.BaseDataContext.save_expectation_suite"
 )
@@ -744,6 +837,25 @@ def test_validator_can_instantiate_with_a_multi_batch_request(
         "0808e185a52825d22356de2fe00a8f5f",
         "90bb41c1fbd7c71c05dbc8695320af71",
     ]
+
+
+def test_validator_with_bad_batchrequest(
+    yellow_trip_pandas_data_context,
+):
+    context: DataContext = yellow_trip_pandas_data_context
+
+    suite: ExpectationSuite = context.create_expectation_suite("validating_taxi_data")
+
+    multi_batch_request: BatchRequest = BatchRequest(
+        datasource_name="taxi_pandas",
+        data_connector_name="monthly",
+        data_asset_name="i_dont_exist",
+        data_connector_query={"batch_filter_parameters": {"year": "2019"}},
+    )
+    with pytest.raises(ge_exceptions.InvalidBatchRequestError):
+        validator_multi_batch: Validator = context.get_validator(
+            batch_request=multi_batch_request, expectation_suite=suite
+        )
 
 
 def test_validator_batch_filter(
@@ -1015,7 +1127,7 @@ def test_instantiate_validator_with_a_list_of_batch_requests(
             expectation_suite=suite,
         )
     assert ve.value.args == (
-        "Only one of batch_request or batch_request_list may be specified",
+        "No more than one of batch, batch_list, batch_request, or batch_request_list can be specified",
     )
 
 
@@ -1086,4 +1198,103 @@ def test_validator_docstrings(multi_batch_taxi_validator):
     )
     assert expectation_impl.__doc__.startswith(
         "Expect each column value to be in a given set"
+    )
+
+
+def test_validator_include_rendered_content(
+    yellow_trip_pandas_data_context,
+):
+    context: DataContext = yellow_trip_pandas_data_context
+    batch_request: BatchRequest = BatchRequest(
+        datasource_name="taxi_pandas",
+        data_connector_name="monthly",
+        data_asset_name="my_reports",
+    )
+    suite: ExpectationSuite = context.create_expectation_suite("validating_taxi_data")
+
+    column: str = "fare_amount"
+    partition_object: Dict[str, List[float]] = {
+        "values": [1.0, 2.0],
+        "weights": [0.3, 0.7],
+    }
+
+    validator_exclude_rendered_content: Validator = context.get_validator(
+        batch_request=batch_request,
+        expectation_suite=suite,
+    )
+    validation_result: ExpectationValidationResult = (
+        validator_exclude_rendered_content.expect_column_kl_divergence_to_be_less_than(
+            column=column,
+            partition_object=partition_object,
+        )
+    )
+    assert validation_result.expectation_config.rendered_content is None
+    assert validation_result.rendered_content is None
+
+    validator_include_rendered_content: Validator = context.get_validator(
+        batch_request=batch_request,
+        expectation_suite=suite,
+        include_rendered_content=True,
+    )
+    validation_result: ExpectationValidationResult = (
+        validator_include_rendered_content.expect_column_kl_divergence_to_be_less_than(
+            column=column,
+            partition_object=partition_object,
+        )
+    )
+    assert len(validation_result.expectation_config.rendered_content) == 1
+    assert isinstance(
+        validation_result.expectation_config.rendered_content[0], RenderedAtomicContent
+    )
+    assert len(validation_result.rendered_content) == 1
+    assert isinstance(validation_result.rendered_content[0], RenderedAtomicContent)
+
+
+def test_validator_include_rendered_content_evaluation_parameters(
+    yellow_trip_pandas_data_context,
+):
+    context: DataContext = yellow_trip_pandas_data_context
+    batch_request: BatchRequest = BatchRequest(
+        datasource_name="taxi_pandas",
+        data_connector_name="monthly",
+        data_asset_name="my_reports",
+    )
+    suite: ExpectationSuite = context.create_expectation_suite("validating_taxi_data")
+
+    validator: Validator = context.get_validator(
+        batch_request=batch_request,
+        expectation_suite=suite,
+        include_rendered_content=True,
+    )
+
+    validator.set_evaluation_parameter("upstream_row_count", 10000)
+
+    validation_result: ExpectationValidationResult = (
+        validator.expect_table_row_count_to_equal(
+            value={"$PARAMETER": "upstream_row_count"},
+            result_format={"result_format": "BOOLEAN_ONLY"},
+        )
+    )
+
+    assert (
+        validation_result.expectation_config.rendered_content[0].value.params["value"][
+            "value"
+        ]
+        == 10000
+    )
+
+    validator.set_evaluation_parameter("upstream_row_count", 8000)
+
+    validation_result: ExpectationValidationResult = (
+        validator.expect_table_row_count_to_equal(
+            value={"$PARAMETER": "upstream_row_count"},
+            result_format={"result_format": "BOOLEAN_ONLY"},
+        )
+    )
+
+    assert (
+        validation_result.expectation_config.rendered_content[0].value.params["value"][
+            "value"
+        ]
+        == 8000
     )

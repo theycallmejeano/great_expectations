@@ -16,7 +16,9 @@ class JsonSiteStore(Store):
 
     """
 
-    def __init__(self, store_backend=None, runtime_environment=None, store_name=None):
+    def __init__(
+        self, store_backend=None, runtime_environment=None, store_name=None
+    ) -> None:
 
         if store_backend is not None:
             store_backend_module_name = store_backend.get(
@@ -58,13 +60,13 @@ class JsonSiteStore(Store):
 
         return json_site_dict
 
-    def serialize(self, key, value):
+    def serialize(self, value):
         return value.to_json_dict()
 
-    def deserialize(self, key, value):
+    def deserialize(self, value):
         return RenderedDocumentContent(**loads(value))
 
-    def self_check(self, pretty_print):
+    def self_check(self, pretty_print) -> None:
         NotImplementedError(
             f"The test method is not implemented for Store class {self.__class__.__name__}."
         )

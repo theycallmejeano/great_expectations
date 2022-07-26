@@ -5,7 +5,6 @@ from unittest.mock import PropertyMock, patch
 import pytest
 
 import great_expectations as ge
-from great_expectations import DataContext
 from great_expectations.data_context.types.base import DataContextConfig
 from great_expectations.data_context.util import file_relative_path
 from tests.integration.usage_statistics.test_integration_usage_statistics import (
@@ -446,7 +445,7 @@ def data_context_with_empty_global_config_dirs(
     mocked_global_config_dirs,
 ):
     with patch(
-        "great_expectations.data_context.data_context.BaseDataContext.GLOBAL_CONFIG_PATHS",
+        "great_expectations.data_context.data_context.AbstractDataContext.GLOBAL_CONFIG_PATHS",
         new_callable=PropertyMock,
     ) as mock:
         (
@@ -464,7 +463,7 @@ def data_context_with_complete_global_config_in_dot_and_etc_dirs(
     mocked_global_config_dirs,
 ):
     with patch(
-        "great_expectations.data_context.data_context.BaseDataContext.GLOBAL_CONFIG_PATHS",
+        "great_expectations.data_context.data_context.AbstractDataContext.GLOBAL_CONFIG_PATHS",
         new_callable=PropertyMock,
     ) as mock:
         (
@@ -494,7 +493,7 @@ def data_context_with_complete_global_config_in_dot_and_etc_dirs(
 @pytest.fixture
 def data_context_with_complete_global_config_in_dot_dir_only(mocked_global_config_dirs):
     with patch(
-        "great_expectations.data_context.data_context.BaseDataContext.GLOBAL_CONFIG_PATHS",
+        "great_expectations.data_context.data_context.AbstractDataContext.GLOBAL_CONFIG_PATHS",
         new_callable=PropertyMock,
     ) as mock:
         (
@@ -519,7 +518,7 @@ def data_context_with_complete_global_config_with_usage_stats_section_in_dot_dir
     mocked_global_config_dirs,
 ):
     with patch(
-        "great_expectations.data_context.data_context.BaseDataContext.GLOBAL_CONFIG_PATHS",
+        "great_expectations.data_context.data_context.AbstractDataContext.GLOBAL_CONFIG_PATHS",
         new_callable=PropertyMock,
     ) as mock:
         (
@@ -542,7 +541,7 @@ def data_context_with_complete_global_config_with_usage_stats_section_in_dot_dir
 @pytest.fixture
 def data_context_with_complete_global_config_in_etc_dir_only(mocked_global_config_dirs):
     with patch(
-        "great_expectations.data_context.data_context.BaseDataContext.GLOBAL_CONFIG_PATHS",
+        "great_expectations.data_context.data_context.AbstractDataContext.GLOBAL_CONFIG_PATHS",
         new_callable=PropertyMock,
     ) as mock:
         (
@@ -568,7 +567,7 @@ def data_context_with_incomplete_global_config_in_dot_dir_only(
 ):
     # missing access_token
     with patch(
-        "great_expectations.data_context.data_context.BaseDataContext.GLOBAL_CONFIG_PATHS",
+        "great_expectations.data_context.data_context.AbstractDataContext.GLOBAL_CONFIG_PATHS",
         new_callable=PropertyMock,
     ) as mock:
         (

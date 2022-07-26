@@ -1,4 +1,5 @@
 # PYTHON 2 - py2 - update to ABC direct use rather than __metaclass__ once we drop py2 support
+import functools
 import logging
 import os
 import random
@@ -35,7 +36,7 @@ class TupleStoreBackend(StoreBackend, metaclass=ABCMeta):
         manually_initialize_store_backend_id: str = "",
         base_public_path=None,
         store_name=None,
-    ):
+    ) -> None:
         super().__init__(
             fixed_length_key=fixed_length_key,
             suppress_store_backend_id=suppress_store_backend_id,
@@ -72,7 +73,7 @@ class TupleStoreBackend(StoreBackend, metaclass=ABCMeta):
             self.verify_that_key_to_filepath_operation_is_reversible()
             self._fixed_length_key = True
 
-    def _validate_key(self, key):
+    def _validate_key(self, key) -> None:
         super()._validate_key(key)
 
         for key_element in key:
@@ -86,7 +87,7 @@ class TupleStoreBackend(StoreBackend, metaclass=ABCMeta):
                         )
                     )
 
-    def _validate_value(self, value):
+    def _validate_value(self, value) -> None:
         if not isinstance(value, str) and not isinstance(value, bytes):
             raise TypeError(
                 "Values in {} must be instances of {} or {}, not {}".format(
@@ -239,7 +240,7 @@ class TupleFilesystemStoreBackend(TupleStoreBackend):
         manually_initialize_store_backend_id: str = "",
         base_public_path=None,
         store_name=None,
-    ):
+    ) -> None:
         super().__init__(
             filepath_template=filepath_template,
             filepath_prefix=filepath_prefix,
@@ -370,7 +371,7 @@ class TupleFilesystemStoreBackend(TupleStoreBackend):
 
         return key_list
 
-    def rrmdir(self, mroot, curpath):
+    def rrmdir(self, mroot, curpath) -> None:
         """
         recursively removes empty dirs between curpath and mroot inclusive
         """
@@ -455,7 +456,7 @@ class TupleS3StoreBackend(TupleStoreBackend):
         base_public_path=None,
         endpoint_url=None,
         store_name=None,
-    ):
+    ) -> None:
         super().__init__(
             filepath_template=filepath_template,
             filepath_prefix=filepath_prefix,
@@ -577,7 +578,7 @@ class TupleS3StoreBackend(TupleStoreBackend):
 
         return s3_object_key
 
-    def _move(self, source_key, dest_key, **kwargs):
+    def _move(self, source_key, dest_key, **kwargs) -> None:
         s3 = self._create_resource()
 
         source_filepath = self._convert_key_to_filepath(source_key)
@@ -648,15 +649,20 @@ class TupleS3StoreBackend(TupleStoreBackend):
         return key_list
 
     def get_url_for_key(self, key, protocol=None):
-        location = self._create_client().get_bucket_location(Bucket=self.bucket)[
-            "LocationConstraint"
-        ]
+        location = None
         if self.boto3_options.get("endpoint_url"):
             location = self.boto3_options.get("endpoint_url")
-        elif location is None:
-            location = "https://s3.amazonaws.com"
         else:
-            location = f"https://s3-{location}.amazonaws.com"
+            # build s3 endpoint when no endpoint_url is configured
+
+            location = self._create_client().get_bucket_location(Bucket=self.bucket)[
+                "LocationConstraint"
+            ]
+
+            if location is None:
+                location = "https://s3.amazonaws.com"
+            else:
+                location = f"https://s3-{location}.amazonaws.com"
 
         s3_key = self._convert_key_to_filepath(key)
 
@@ -752,7 +758,7 @@ class TupleGCSStoreBackend(TupleStoreBackend):
         public_urls=True,
         base_public_path=None,
         store_name=None,
-    ):
+    ) -> None:
         super().__init__(
             filepath_template=filepath_template,
             filepath_prefix=filepath_prefix,
@@ -852,7 +858,7 @@ class TupleGCSStoreBackend(TupleStoreBackend):
             blob.upload_from_string(value, content_type=content_type)
         return gcs_object_key
 
-    def _move(self, source_key, dest_key, **kwargs):
+    def _move(self, source_key, dest_key, **kwargs) -> None:
         from google.cloud import storage
 
         gcs = storage.Client(project=self.project)
@@ -965,8 +971,9 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
     def __init__(
         self,
         container,
-        connection_string,
-        prefix="",
+        connection_string=None,
+        account_url=None,
+        prefix=None,
         filepath_template=None,
         filepath_prefix=None,
         filepath_suffix=None,
@@ -976,7 +983,7 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
         suppress_store_backend_id=False,
         manually_initialize_store_backend_id: str = "",
         store_name=None,
-    ):
+    ) -> None:
         super().__init__(
             filepath_template=filepath_template,
             filepath_prefix=filepath_prefix,
@@ -988,30 +995,39 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
             manually_initialize_store_backend_id=manually_initialize_store_backend_id,
             store_name=store_name,
         )
-        self.connection_string = connection_string
-        self.prefix = prefix
+        self.connection_string = connection_string or os.environ.get(
+            "AZURE_STORAGE_CONNECTION_STRING"
+        )
+        self.prefix = prefix or ""
         self.container = container
+        self.account_url = account_url or os.environ.get("AZURE_STORAGE_ACCOUNT_URL")
 
-    def _get_container_client(self):
+    @property
+    @functools.lru_cache()
+    def _container_client(self):
 
+        from azure.identity import DefaultAzureCredential
         from azure.storage.blob import BlobServiceClient
 
         if self.connection_string:
-            return BlobServiceClient.from_connection_string(
+            blob_service_client = BlobServiceClient.from_connection_string(
                 self.connection_string
-            ).get_container_client(self.container)
+            )
+        elif self.account_url:
+            blob_service_client = BlobServiceClient(
+                account_url=self.account_url, credential=DefaultAzureCredential()
+            )
         else:
             raise StoreBackendError(
                 "Unable to initialize ServiceClient, AZURE_STORAGE_CONNECTION_STRING should be set"
             )
 
+        return blob_service_client.get_container_client(self.container)
+
     def _get(self, key):
         az_blob_key = os.path.join(self.prefix, self._convert_key_to_filepath(key))
         return (
-            self._get_container_client()
-            .download_blob(az_blob_key)
-            .readall()
-            .decode("utf-8")
+            self._container_client.download_blob(az_blob_key).readall().decode("utf-8")
         )
 
     def _set(self, key, value, content_encoding="utf-8", **kwargs):
@@ -1023,7 +1039,7 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
         if isinstance(value, str):
             if az_blob_key.endswith(".html"):
                 my_content_settings = ContentSettings(content_type="text/html")
-                self._get_container_client().upload_blob(
+                self._container_client.upload_blob(
                     name=az_blob_key,
                     data=value,
                     encoding=content_encoding,
@@ -1031,14 +1047,14 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
                     content_settings=my_content_settings,
                 )
             else:
-                self._get_container_client().upload_blob(
+                self._container_client.upload_blob(
                     name=az_blob_key,
                     data=value,
                     encoding=content_encoding,
                     overwrite=True,
                 )
         else:
-            self._get_container_client().upload_blob(
+            self._container_client.upload_blob(
                 name=az_blob_key, data=value, overwrite=True
             )
         return az_blob_key
@@ -1047,9 +1063,7 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
         # Note that the prefix arg is only included to maintain consistency with the parent class signature
         key_list = []
 
-        for obj in self._get_container_client().list_blobs(
-            name_starts_with=self.prefix
-        ):
+        for obj in self._container_client.list_blobs(name_starts_with=self.prefix):
             az_blob_key = os.path.relpath(obj.name)
             if az_blob_key.startswith(f"{self.prefix}/"):
                 az_blob_key = az_blob_key[len(self.prefix) + 1 :]
@@ -1071,7 +1085,7 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
         az_blob_path = os.path.join(self.container, self.prefix, az_blob_key)
 
         return "https://{}.blob.core.windows.net/{}".format(
-            self._get_container_client().account_name,
+            self._container_client.account_name,
             az_blob_path,
         )
 
@@ -1079,7 +1093,7 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
         all_keys = self.list_keys()
         return key in all_keys
 
-    def _move(self, source_key, dest_key, **kwargs):
+    def _move(self, source_key, dest_key, **kwargs) -> None:
         source_blob_path = self._convert_key_to_filepath(source_key)
         if not source_blob_path.startswith(self.prefix):
             source_blob_path = os.path.join(self.prefix, source_blob_path)
@@ -1088,8 +1102,8 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
             dest_blob_path = os.path.join(self.prefix, dest_blob_path)
 
         # azure storage sdk does not have _move method
-        source_blob = self._get_container_client().get_blob_client(source_blob_path)
-        dest_blob = self._get_container_client().get_blob_client(dest_blob_path)
+        source_blob = self._container_client.get_blob_client(source_blob_path)
+        dest_blob = self._container_client.get_blob_client(dest_blob_path)
 
         dest_blob.start_copy_from_url(source_blob.url, requires_sync=True)
         copy_properties = dest_blob.get_blob_properties().copy
@@ -1097,8 +1111,7 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
         if copy_properties.status != "success":
             dest_blob.abort_copy(copy_properties.id)
             raise StoreBackendError(
-                "Unable to copy blob %s with status %s"
-                % (source_blob_path, copy_properties.status)
+                f"Unable to copy blob {source_blob_path} with status {copy_properties.status}"
             )
         source_blob.delete_blob()
 
@@ -1110,7 +1123,7 @@ class TupleAzureBlobStoreBackend(TupleStoreBackend):
         if not az_blob_path.startswith(self.prefix):
             az_blob_path = os.path.join(self.prefix, az_blob_path)
 
-        blob = self._get_container_client().get_blob_client(az_blob_path)
+        blob = self._container_client.get_blob_client(az_blob_path)
         blob.delete_blob()
         return True
 

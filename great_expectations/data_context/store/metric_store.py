@@ -21,7 +21,7 @@ class MetricStore(Store):
 
     _key_class = ValidationMetricIdentifier
 
-    def __init__(self, store_backend=None, store_name=None):
+    def __init__(self, store_backend=None, store_name=None) -> None:
         if store_backend is not None:
             store_backend_module_name = store_backend.get(
                 "module_name", "great_expectations.data_context.store"
@@ -56,20 +56,20 @@ class MetricStore(Store):
         super().__init__(store_backend=store_backend, store_name=store_name)
 
     # noinspection PyMethodMayBeStatic
-    def _validate_value(self, value):
+    def _validate_value(self, value) -> None:
         # Values must be json serializable since they must be inputs to expectation configurations
         ensure_json_serializable(value)
 
-    def serialize(self, key, value):
+    def serialize(self, value):
         return json.dumps({"value": value})
 
-    def deserialize(self, key, value):
+    def deserialize(self, value):
         if value:
             return json.loads(value)["value"]
 
 
 class EvaluationParameterStore(MetricStore):
-    def __init__(self, store_backend=None, store_name=None):
+    def __init__(self, store_backend=None, store_name=None) -> None:
         if store_backend is not None:
             store_backend_module_name = store_backend.get(
                 "module_name", "great_expectations.data_context.store"

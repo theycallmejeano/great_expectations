@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 from collections import OrderedDict
@@ -14,9 +15,53 @@ from great_expectations.exceptions import ProfilerError
 from great_expectations.profile.basic_suite_builder_profiler import (
     BasicSuiteBuilderProfiler,
 )
-from great_expectations.self_check.util import expectationSuiteValidationResultSchema
+from great_expectations.self_check.util import (
+    expectationSuiteValidationResultSchema,
+    get_dataset,
+)
+from great_expectations.util import is_library_loadable
 
 FALSEY_VALUES = [None, [], False]
+
+
+@pytest.fixture
+def datetime_dataset(test_backend):
+    data = {
+        "datetime": [
+            str(datetime.datetime(2020, 2, 4, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 5, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 6, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 7, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 8, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 9, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 10, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 11, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 12, 22, 12, 5, 943152)),
+            str(datetime.datetime(2020, 2, 13, 22, 12, 5, 943152)),
+        ]
+    }
+
+    schemas = {
+        "pandas": {
+            "datetime": "datetime64",
+        },
+        "postgresql": {
+            "datetime": "TIMESTAMP",
+        },
+        "sqlite": {
+            "datetime": "TIMESTAMP",
+        },
+        "mysql": {
+            "datetime": "TIMESTAMP",
+        },
+        "mssql": {
+            "datetime": "DATETIME",
+        },
+        "spark": {
+            "datetime": "TimestampType",
+        },
+    }
+    return get_dataset(test_backend, data, schemas=schemas)
 
 
 @pytest.mark.filterwarnings(
@@ -231,6 +276,10 @@ def test__create_expectations_for_string_column(non_numeric_high_card_dataset):
 @pytest.mark.filterwarnings(
     "ignore:DataAsset.remove_expectations*:DeprecationWarning:great_expectations.data_asset"
 )
+@pytest.mark.skipif(
+    is_library_loadable(library_name="trino"),
+    reason="datetime doesnt exist in Trino",
+)
 def test__find_next_datetime_column(datetime_dataset, numeric_high_card_dataset):
     columns = datetime_dataset.get_table_columns()
     column_cache = {}
@@ -261,6 +310,10 @@ def test__find_next_datetime_column(datetime_dataset, numeric_high_card_dataset)
 
 @pytest.mark.filterwarnings(
     "ignore:DataAsset.remove_expectations*:DeprecationWarning:great_expectations.data_asset"
+)
+@pytest.mark.skipif(
+    is_library_loadable(library_name="trino"),
+    reason="datetime doesnt exist in Trino",
 )
 def test__create_expectations_for_datetime_column(datetime_dataset):
     column = "datetime"

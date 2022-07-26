@@ -16,6 +16,28 @@ from great_expectations.render.types import (
 )
 
 
+@pytest.fixture
+def evr_failed_with_exception():
+    return ExpectationValidationResult(
+        success=False,
+        exception_info={
+            "raised_exception": True,
+            "exception_message": "Invalid partition object.",
+            "exception_traceback": 'Traceback (most recent call last):\n  File "/great_expectations/great_expectations/data_asset/data_asset.py", line 216, in wrapper\n    return_obj = func(self, **evaluation_args)\n  File "/great_expectations/great_expectations/dataset/dataset.py", line 106, in inner_wrapper\n    evaluation_result = func(self, column, *args, **kwargs)\n  File "/great_expectations/great_expectations/dataset/dataset.py", line 3381, in expect_column_kl_divergence_to_be_less_than\n    raise ValueError("Invalid partition object.")\nValueError: Invalid partition object.\n',
+        },
+        expectation_config=ExpectationConfiguration(
+            expectation_type="expect_column_kl_divergence_to_be_less_than",
+            kwargs={
+                "column": "live",
+                "partition_object": None,
+                "threshold": None,
+                "result_format": "SUMMARY",
+            },
+            meta={"BasicDatasetProfiler": {"confidence": "very low"}},
+        ),
+    )
+
+
 def test_ValidationResultsTableContentBlockRenderer_generate_expectation_row_with_errored_expectation(
     evr_failed_with_exception,
 ):
@@ -196,8 +218,6 @@ def test_ValidationResultsTableContentBlockRenderer_get_content_block_fn(evr_suc
                             "min_value": 0,
                             "max_value": None,
                             "result_format": "SUMMARY",
-                            "row_condition": None,
-                            "condition_parser": None,
                             "strict_max": None,
                             "strict_min": None,
                         },
@@ -248,8 +268,6 @@ def test_ValidationResultsTableContentBlockRenderer_get_content_block_fn(evr_suc
                             "min_value": 0,
                             "max_value": None,
                             "result_format": "SUMMARY",
-                            "row_condition": None,
-                            "condition_parser": None,
                             "strict_max": None,
                             "strict_min": None,
                         },
@@ -317,8 +335,6 @@ def test_ValidationResultsTableContentBlockRenderer_get_content_block_fn(evr_suc
                             "min_value": 0,
                             "max_value": None,
                             "result_format": "SUMMARY",
-                            "row_condition": None,
-                            "condition_parser": None,
                             "strict_max": None,
                             "strict_min": None,
                         },
@@ -382,8 +398,6 @@ def test_ValidationResultsTableContentBlockRenderer_get_content_block_fn(evr_suc
                             "min_value": 0,
                             "max_value": None,
                             "result_format": "SUMMARY",
-                            "row_condition": None,
-                            "condition_parser": None,
                             "strict_max": None,
                             "strict_min": None,
                         },

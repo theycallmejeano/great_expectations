@@ -9,10 +9,7 @@ from great_expectations.expectations.expectation import (
 from great_expectations.expectations.util import render_evaluation_parameter_string
 from great_expectations.render.renderer.renderer import renderer
 from great_expectations.render.types import RenderedStringTemplateContent
-from great_expectations.render.util import (
-    parse_row_condition_string_pandas_engine,
-    substitute_none_for_missing,
-)
+from great_expectations.render.util import substitute_none_for_missing
 
 
 class ExpectTableRowCountToEqual(TableExpectation):
@@ -74,7 +71,7 @@ class ExpectTableRowCountToEqual(TableExpectation):
 
     def validate_configuration(
         self, configuration: Optional[ExpectationConfiguration]
-    ) -> bool:
+    ) -> None:
         """
         Validates that a configuration has been set, and sets a configuration if it has yet to be set. Ensures that
         necessary configuration arguments have been provided for the validation of the expectation.
@@ -83,7 +80,7 @@ class ExpectTableRowCountToEqual(TableExpectation):
             configuration (OPTIONAL[ExpectationConfiguration]): \
                 An optional Expectation Configuration entry that will be used to configure the expectation
         Returns:
-            True if the configuration has been validated successfully. Otherwise, raises an exception
+            None. Raises InvalidExpectationConfigurationError if the config is not validated successfully
         """
 
         # Setting up a configuration
@@ -104,8 +101,6 @@ class ExpectTableRowCountToEqual(TableExpectation):
         except AssertionError as e:
             raise InvalidExpectationConfigurationError(str(e))
 
-        return True
-
     @classmethod
     def _atomic_prescriptive_template(
         cls,
@@ -123,38 +118,15 @@ class ExpectTableRowCountToEqual(TableExpectation):
         styling = runtime_configuration.get("styling")
         params = substitute_none_for_missing(
             configuration.kwargs,
-            ["value", "row_condition", "condition_parser"],
+            ["value"],
         )
         params_with_json_schema = {
             "value": {
                 "schema": {"type": "number"},
                 "value": params.get("value"),
             },
-            "row_condition": {
-                "schema": {"type": "string"},
-                "value": params.get("row_condition"),
-            },
-            "condition_parser": {
-                "schema": {"type": "string"},
-                "value": params.get("condition_parser"),
-            },
         }
         template_str = "Must have exactly $value rows."
-
-        if params["row_condition"] is not None:
-            (
-                conditional_template_str,
-                conditional_params,
-            ) = parse_row_condition_string_pandas_engine(
-                params["row_condition"], with_schema=True
-            )
-            template_str = (
-                conditional_template_str
-                + ", then "
-                + template_str[0].lower()
-                + template_str[1:]
-            )
-            params_with_json_schema.update(conditional_params)
 
         return (template_str, params_with_json_schema, styling)
 
@@ -177,22 +149,9 @@ class ExpectTableRowCountToEqual(TableExpectation):
         styling = runtime_configuration.get("styling")
         params = substitute_none_for_missing(
             configuration.kwargs,
-            ["value", "row_condition", "condition_parser"],
+            ["value"],
         )
         template_str = "Must have exactly $value rows."
-
-        if params["row_condition"] is not None:
-            (
-                conditional_template_str,
-                conditional_params,
-            ) = parse_row_condition_string_pandas_engine(params["row_condition"])
-            template_str = (
-                conditional_template_str
-                + ", then "
-                + template_str[0].lower()
-                + template_str[1:]
-            )
-            params.update(conditional_params)
 
         return [
             RenderedStringTemplateContent(

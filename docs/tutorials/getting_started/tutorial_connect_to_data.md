@@ -46,6 +46,10 @@ What are you processing your files with?
 
 For this tutorial we will use Pandas to process our files, so again answer with `1` and press enter to continue.
 
+:::note
+When you select `1. Pandas` from the above list, you are specifying your Datasource's <TechnicalTag tag="execution_engine" text="Execution Engine" />.  Although the tutorial uses Pandas, Spark and SqlAlchemy are also supported as Execution Engines.
+:::
+
 We're almost done with the CLI!  You'll be prompted once more, this time for the path of the directory where the data files are located.  The prompt will look like:
 
 ````console
@@ -81,7 +85,7 @@ When you completed those last few steps, you told Great Expectations that:
 
 Based on that information, the CLI added the following entry into your ```great_expectations.yml``` file, under the `datasources` header:
 
-```yaml file=../../../tests/integration/docusaurus/tutorials/getting-started/getting_started.py#L23-L40
+```yaml file=../../../tests/integration/docusaurus/tutorials/getting-started/getting_started.py#L24-L43
 ```
 
 Please note that due to how data is serialized, the entry in your ```great_expectations.yml``` file may not have these key/value pairs in the same order as the above example.  However, they will all have been added.

@@ -47,7 +47,7 @@ class ExpectMulticolumnSumToEqual(MulticolumnMapExpectation):
     }
 
     map_metric = "multicolumn_sum.equal"
-    success_keys = ("sum_total",)
+    success_keys = ("mostly", "sum_total")
     default_kwarg_values = {
         "row_condition": None,
         "condition_parser": None,  # we expect this to be explicitly set whenever a row_condition is passed
@@ -63,7 +63,7 @@ class ExpectMulticolumnSumToEqual(MulticolumnMapExpectation):
 
     def validate_configuration(
         self, configuration: Optional[ExpectationConfiguration]
-    ) -> bool:
+    ) -> None:
         """
         Validates that a configuration has been set, and sets a configuration if it has yet to be set. Ensures that
         necessary configuration arguments have been provided for the validation of the expectation.
@@ -72,12 +72,10 @@ class ExpectMulticolumnSumToEqual(MulticolumnMapExpectation):
             configuration (OPTIONAL[ExpectationConfiguration]): \
                 An optional Expectation Configuration entry that will be used to configure the expectation
         Returns:
-            True if the configuration has been validated successfully. Otherwise, raises an exception
+            None. Raises InvalidExpectationConfigurationError if the config is not validated successfully
         """
         super().validate_configuration(configuration)
         self.validate_metric_value_between_configuration(configuration=configuration)
-
-        return True
 
     @classmethod
     @renderer(renderer_type="renderer.prescriptive")
@@ -89,7 +87,7 @@ class ExpectMulticolumnSumToEqual(MulticolumnMapExpectation):
         language=None,
         runtime_configuration=None,
         **kwargs,
-    ):
+    ) -> None:
         pass
 
     @classmethod
@@ -101,5 +99,5 @@ class ExpectMulticolumnSumToEqual(MulticolumnMapExpectation):
         language=None,
         runtime_configuration=None,
         **kwargs,
-    ):
+    ) -> None:
         pass

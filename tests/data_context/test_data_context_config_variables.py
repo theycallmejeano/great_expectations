@@ -1,10 +1,12 @@
 import os
+import shutil
 from collections import OrderedDict
 
 import pytest
 from ruamel.yaml import YAML
 
 import great_expectations as ge
+from great_expectations.data_context.data_context import DataContext
 from great_expectations.data_context.types.base import (
     DataContextConfig,
     DataContextConfigSchema,
@@ -24,6 +26,24 @@ yaml.indent(mapping=2, sequence=4, offset=2)
 yaml.default_flow_style = False
 
 dataContextConfigSchema = DataContextConfigSchema()
+
+
+@pytest.fixture
+def empty_data_context_with_config_variables(monkeypatch, empty_data_context):
+    monkeypatch.setenv("FOO", "BAR")
+    monkeypatch.setenv("REPLACE_ME_ESCAPED_ENV", "ive_been_$--replaced")
+    root_dir = empty_data_context.root_directory
+    ge_config_path = file_relative_path(
+        __file__,
+        "../test_fixtures/great_expectations_basic_with_variables.yml",
+    )
+    shutil.copy(ge_config_path, os.path.join(root_dir, "great_expectations.yml"))
+    config_variables_path = file_relative_path(
+        __file__,
+        "../test_fixtures/config_variables.yml",
+    )
+    shutil.copy(config_variables_path, os.path.join(root_dir, "uncommitted"))
+    return DataContext(context_root_dir=root_dir)
 
 
 def test_config_variables_on_context_without_config_variables_filepath_configured(
@@ -75,7 +95,7 @@ def test_setting_config_variables_is_visible_immediately(
         == "$replace_me"
     )
 
-    config_variables = context._load_config_variables_file()
+    config_variables = context.config_variables
     assert config_variables["replace_me"] == {"n1": "v1"}
 
     # the context's config has two config variables - one using the ${} syntax and the other - $.
@@ -142,7 +162,7 @@ def test_setting_config_variables_is_visible_immediately(
     )
 
     # Ensure that the value saved in config variables has escaped the $
-    config_variables_with_escaped_vars = context._load_config_variables_file()
+    config_variables_with_escaped_vars = context.config_variables
     assert (
         config_variables_with_escaped_vars["escaped_password"]
         == r"this_is_\$mypassword_escape_the_\$signs"
@@ -302,7 +322,7 @@ def test_substitute_config_variable():
     assert (
         """Unable to find a match for config substitution variable: `arg1`.
 Please add this missing variable to your `uncommitted/config_variables.yml` file or your environment variables.
-See https://great-expectations.readthedocs.io/en/latest/reference/data_context_reference.html#managing-environment-and-secrets"""
+See https://docs.greatexpectations.io/docs/guides/setup/configuring_data_contexts/how_to_configure_credentials"""
         in exc.value.message
     )
     assert (
@@ -762,7 +782,7 @@ def test_create_data_context_and_config_vars_in_code(tmp_path_factory, monkeypat
     for k, v in CONFIG_VARS.items():
         context.save_config_variable(k, v)
 
-    config_vars_file_contents = context._load_config_variables_file()
+    config_vars_file_contents = context.config_variables
 
     # Add escaping for DB_PWD since it is not of the form ${SOMEVAR} or $SOMEVAR
     CONFIG_VARS_WITH_ESCAPING = CONFIG_VARS.copy()
@@ -834,7 +854,7 @@ def test_create_data_context_and_config_vars_in_code(tmp_path_factory, monkeypat
         "escaped_curly", "${SOME_VAR}", skip_if_substitution_variable=False
     )
 
-    config_vars_file_contents = context._load_config_variables_file()
+    config_vars_file_contents = context.config_variables
 
     assert config_vars_file_contents["escaped"] == r"\$SOME_VAR"
     assert config_vars_file_contents["escaped_curly"] == r"\${SOME_VAR}"
